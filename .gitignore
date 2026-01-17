@@ -1,0 +1,11 @@
+# Node modules
+node_modules/
+
+# Build artifacts
+build/
+*.o
+*.node
+*.d
+
+# Logs
+npm-debug.log

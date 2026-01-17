@@ -1,0 +1,28 @@
+{
+  "name": "fastscan",
+  "version": "1.0.0",
+  "description": "High-performance file scanner using native mmap and finite state machines",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "node-gyp build",
+    "rebuild": "node-gyp rebuild",
+    "test": "node test/api.test.js",
+    "clean": "node-gyp clean"
+  },
+  "keywords": [
+    "scanner",
+    "grep",
+    "mmap",
+    "native",
+    "performance"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bindings": "^1.5.0"
+  },
+  "devDependencies": {
+    "node-gyp": "^12.1.0"
+  },
+  "gypfile": true
+}
