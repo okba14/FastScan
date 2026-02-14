@@ -88,7 +88,8 @@ node async-test.js
 Search for the word **"ERROR"** in a large log file:
 
 ```bash
-node cli.js big_data.log "ERROR" 50
+node generate-data.js
+node test/cli.js big_data.log "ERROR" 50
 ```
 
 **Arguments:**
@@ -107,10 +108,27 @@ node cli.js big_data.log "ERROR" 50
 [*] Please wait...
 
 ✅ Scan Finished.
-   Found 88 matches
+   Found 50 matches
 
-[Match #1] Offset: 407
-2023-10-25 [ERROR] Critical failure detected
+--- Results Preview (First 10 matches) ---
+[Match #1] Offset: 249
+   ... ..
+2023-10-25 [DEBUG] Memory check OK
+2023-10-25 [ERROR] Critical failure detected at index ID
+2023- ...
+
+[Match #2] Offset: 385
+   ... ..
+2023-10-25 [DEBUG] Memory check OK
+2023-10-25 [ERROR] Critical failure detected at index ID
+2023- ...
+
+[Match #3] Offset: 1469
+   ... ..
+2023-10-25 [DEBUG] Memory check OK
+2023-10-25 [ERROR] Critical failure detected at index ID
+2023- ...
+
 ```
 
 ---
