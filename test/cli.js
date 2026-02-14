@@ -1,4 +1,4 @@
-const fastscan = require('./src/index');
+const fastscan = require('../src/index');
 const fs = require('fs');
 const path = require('path');
 
