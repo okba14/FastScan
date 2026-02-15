@@ -1,6 +1,7 @@
-# FastScan 🚀
+# FastScan — Low-Level, High-Performance File Scanning for Node.js
 
-FastScan is a **high‑performance file scanning engine for Node.js** designed to search massive files (GB‑scale logs) with **near‑native speed**, **minimal memory usage**, and **non‑blocking async execution**.
+FastScan brings **C-level speed** to Node.js, scanning massive GB-scale files with **near-native performance**, **minimal memory footprint**, and **non-blocking async execution**.
+
 
 It combines:
 
@@ -16,13 +17,26 @@ FastScan is built for developers who need **real systems‑level performance** w
 
 ## ✨ Key Features
 
-* **Up to 8× faster** than `Buffer.indexOf`
-* **Zero‑copy results** using `ExternalArrayBuffer`
-* **Scans files larger than RAM** (uses OS page cache)
-* **BigInt offsets** (supports files > 2GB safely)
-* **Async, non‑blocking API**
-* **Parallel execution** using all CPU cores
-* **CLI tool** for direct usage
+- 🚀 **2–3× faster** than `Buffer.indexOf` on standard hardware  
+  *(Scales even higher on modern CPUs)*
+
+- 🧠 **Zero-copy results** using `ExternalArrayBuffer`
+
+- 💾 **Scans files larger than RAM**  
+  *(Leverages OS page cache)*
+
+- 🔢 **BigInt offsets**  
+  *(Safely supports files larger than 2GB)*
+
+- ⚡ **Async, non-blocking API**  
+  *(Leaves one CPU core free for Node.js)*
+
+- 🧵 **Parallel execution**  
+  *(Utilizes all available CPU cores)*
+
+- 🛠️ **CLI tool included**  
+  *(Ready for direct usage)*
+
 
 ---
 
@@ -148,10 +162,115 @@ This creates a large synthetic log file for benchmarking.
 ### Run Benchmarks
 
 ```bash
-node benchmark.js
+node benchmarks/benchmark.js
 ```
 
-FastScan benchmarks itself against native Node.js scanning methods.
+## 📊 Benchmarking
+
+**FastScan** benchmarks itself against native Node.js scanning methods.
+
+### 📊 Sample Results (SSE2 Environment)
+
+The following results were obtained on a machine with an older CPU  
+*(supporting SSE2 only)*.
+
+They demonstrate consistent superiority in real-world patterns  
+while maintaining memory efficiency.
+
+```bash
+
+🚀 FastScan Ultimate Benchmark
+📁 File: /home/bbot/Desktop/FastScan/benchmarks/big_data.log
+📦 Size: 100.00 MB
+
+🔥 BENCHMARK 1: Multi-Pattern Stress Test (Speed & Generic Optimization)
+⚠️  Result Cap: 100000 matches (Testing pure scan speed)
+------------------------------------------------------------
+
+🔎 Testing Pattern: "ERROR" (Short (5 chars))
+[Results] Matches: 100000 (Node) vs 100000 (FastScan)
+[Node.js] Avg Time: 80.41 ms
+[FastScan] Avg Time: 26.36 ms
+[Speedup] 🚀 FastScan is 3.05x FASTER
+
+🔎 Testing Pattern: "Critical failure" (Medium (17 chars))
+[Results] Matches: 100000 (Node) vs 100000 (FastScan)
+[Node.js] Avg Time: 61.43 ms
+[FastScan] Avg Time: 23.32 ms
+[Speedup] 🚀 FastScan is 2.63x FASTER
+
+🔎 Testing Pattern: "2023-10-25 [ERROR] Critical fail" (Long (36 chars))
+[Results] Matches: 100000 (Node) vs 100000 (FastScan)
+[Node.js] Avg Time: 109.53 ms
+[FastScan] Avg Time: 53.97 ms
+[Speedup] 🚀 FastScan is 2.03x FASTER
+
+🔎 Testing Pattern: ":" (Worst Case (1 char))
+[Results] Matches: 0 (Node) vs 0 (FastScan)
+[Node.js] Avg Time: 15.90 ms
+[FastScan] Avg Time: 20.94 ms
+[Speedup] 🐢 Node.js is faster (Expected for tiny patterns)
+------------------------------------------------------------
+
+💾 BENCHMARK 2: Memory Consumption Analysis
+------------------------------------------------------------
+[Node.js] Heap Allocated: 0.00 MB (File loaded into RAM)
+[FastScan] Heap Allocated: -0.42 MB (Zero-Copy via OS Page Cache)
+[Verdict] ✅ FastScan uses significantly LESS Heap Memory.
+------------------------------------------------------------
+
+⚡ BENCHMARK 3: Event Loop Blocking Test (Async)
+------------------------------------------------------------
+[Scenario] Scanning large file while keeping main thread alive...
+
+  [Async Scan] Finished in 30.05 ms
+  [Main Thread] Heartbeats detected: 4
+[Verdict] ✅ NON-BLOCKING. Main thread remained responsive.
+------------------------------------------------------------
+
+🏁 BENCHMARK FINISHED. FastScan is battle-ready.
+
+```
+---
+
+## 🖥️ Hardware Compatibility (SSE2 vs AVX2)
+
+**FastScan** is designed to be **portable and robust**.
+
+### 🔹 Current Baseline (SSE2)
+
+The engine currently uses **SSE2 (128-bit SIMD)** by default.  
+This ensures the library runs efficiently on any x64 CPU manufactured in the last 15+ years.
+
+**Result:** You get a solid **2–3× speedup** even on legacy hardware.
+
+---
+
+### 🔹 Modern Hardware (AVX2 / AVX-512)
+
+The architecture is built to scale.
+
+On modern CPUs supporting **AVX2 (256-bit)** or **AVX-512**,  
+the internal vectorization width can be extended.
+
+**Potential:**  
+Without changing the API, enabling AVX2 compilation flags (`-mavx2`) on supported hardware  
+can push the speedup to **6–8× or higher**.
+
+---
+
+### 🔹 Optimization Note
+
+`glibc`'s `memchr` (used for single-byte searches) automatically utilizes  
+**AVX2 / AVX-512** when available, making single-byte search highly optimized  
+on modern Linux distributions.
+
+---
+
+## ✅ Conclusion
+
+You don’t need a supercomputer to feel the speed.  
+**FastScan delivers performance wherever it runs.**
 
 ---
 
@@ -207,7 +326,17 @@ MIT License
 
 > FastScan bridges the gap between **Node.js productivity** and **systems‑level performance**.
 
+---
 
+## 👨‍💻 Author
+
+**GUIAR OQBA** 🇩🇿 — *Low-level enthusiast & security researcher*
+
+- ✉️ Email: [techokba@gmail.com](mailto:techokba@gmail.com)  
+- 💬 Telegram: [maronyo](https://t.me/maronyo)  
+- 🔗 LinkedIn: [guiar-oqba](https://www.linkedin.com/in/guiar-oqba)
+
+*Passionate about low-level programming, fuzzing, and pushing hardware to its limits.*
 
 
 

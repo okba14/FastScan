@@ -6,42 +6,48 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
-fs_status_t fs_get_file_size(const char* filepath, fs_size_t* out_size) {
-    if (!filepath || !out_size) return FS_ERROR_NULL_PTR;
-
-    struct stat st;
-    if (stat(filepath, &st) != 0) {
-        return FS_ERROR_OPEN_FAILED;
-    }
-
-    *out_size = (fs_size_t)st.st_size;
-    return FS_SUCCESS;
-}
+// Linux specific headers for advanced hints
+#ifdef __linux__
+#include <fcntl.h> 
+#endif
 
 fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
     if (!filepath || !region) return FS_ERROR_NULL_PTR;
 
-    // 1. Get file size
-    fs_size_t size = 0;
-    fs_status_t status = fs_get_file_size(filepath, &size);
-    if (status != FS_SUCCESS) return status;
+    // 1. Optimized Syscalls: Open first, then fstat
+    // Reduces race conditions and saves one syscall context switch
+    int fd = open(filepath, O_RDONLY);
+    if (fd == -1) return FS_ERROR_OPEN_FAILED;
+
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        close(fd);
+        return FS_ERROR_OPEN_FAILED;
+    }
+
+    fs_size_t size = (fs_size_t)st.st_size;
 
     if (size == 0) {
         region->data = NULL;
         region->size = 0;
-        region->fd = -1;
-        return FS_SUCCESS; 
+        region->fd = fd; 
+        return FS_SUCCESS;
     }
 
+    // 2. Aggressive mmap flags
+    int flags = MAP_PRIVATE;
 
-    int fd = open(filepath, O_RDONLY);
-    if (fd == -1) {
-        return FS_ERROR_OPEN_FAILED;
-    }
+#ifdef __linux__
+    // MAP_POPULATE: Pre-fault pages. 
+    // Kernel loads file into RAM immediately during mmap.
+    // Eliminates page faults during scanning loop.
+    flags |= MAP_POPULATE;
+#endif
 
-
-    void* map = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    void* map = mmap(NULL, size, PROT_READ, flags, fd, 0);
+    
     if (map == MAP_FAILED) {
         close(fd);
         return FS_ERROR_MMAP_FAILED;
@@ -49,9 +55,17 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
 
 
 #ifdef __linux__
-    posix_madvise(map, size, POSIX_MADV_SEQUENTIAL);
-#endif
+    
+    madvise(map, size, MADV_SEQUENTIAL | MADV_WILLNEED);
+    
 
+    madvise(map, size, MADV_HUGEPAGE);
+
+    
+    if (size > 0) {
+        readahead(fd, 0, size);
+    }
+#endif
 
     region->data = (const fs_byte_t*)map;
     region->size = size;
@@ -64,6 +78,11 @@ void fs_mmap_close(fs_region_t* region) {
     if (!region) return;
 
     if (region->data && region->size > 0) {
+
+        #ifdef __linux__
+        madvise((void*)region->data, region->size, MADV_DONTNEED);
+        #endif
+        
         munmap((void*)region->data, region->size);
         region->data = NULL;
     }
