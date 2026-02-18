@@ -1,5 +1,8 @@
 # FastScan — Low-Level, High-Performance File Scanning for Node.js
 
+[![npm version](https://img.shields.io/npm/v/@okbawiss/fastscan.svg)](https://www.npmjs.com/package/@okbawiss/fastscan)
+[![license](https://img.shields.io/npm/l/@okbawiss/fastscan.svg)](https://github.com/okba14/FastScan/blob/main/LICENSE)
+---
 FastScan brings **C-level speed** to Node.js, scanning massive GB-scale files with **near-native performance**, **minimal memory footprint**, and **non-blocking async execution**.
 
 
@@ -67,34 +70,42 @@ sudo apt-get install build-essential
 > Required for compiling the native C addon.
 
 ---
+2️⃣ Install & Build
 
-### 2️⃣ Install Dependencies
+### Build Native Addon
+You can install the package in two ways:
+
+#### a) From the GitHub repository (for development or the latest version)
 
 ```bash
+git clone https://github.com/okba14/FastScan.git
+cd FastScan
 npm install
+npm run rebuild  # Builds the native scanner using node-gyp
 ```
-
----
-
-### 3️⃣ Build Native Addon
+### b) From npm (for general usage)
 
 ```bash
-npm run rebuild
+npm install @okbawiss/fastscan
 ```
-
-This compiles the native scanner using `node-gyp`.
+### Installing from npm automatically provides the CLI and Node.js API; no manual rebuild is required.
 
 ---
 
 ## 🧪 Basic Usage
 
 ### ▶️ Run Tests
-
+1- Using the repository version
 ```bash
+# If using the GitHub repo version
 node test.js
 node async-test.js
 ```
-
+2- Using the npm version
+```bash
+# npm version
+npx fastscan big_data.log "ERROR" 50
+```
 ---
 
 ### 🖥️ CLI Usage
@@ -112,6 +123,7 @@ node test/cli.js big_data.log "ERROR" 50
 2. Search pattern
 3. Maximum number of matches
 
+## ⚠️ Note: This version currently supports Linux only. Windows and macOS support will be added in the future.
 ---
 
 ### 📄 Example Output
