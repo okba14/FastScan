@@ -9,3 +9,4 @@ build/
 
 # Logs
 npm-debug.log
+*.tgz
