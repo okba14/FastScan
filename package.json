@@ -1,9 +1,13 @@
 {
-  "name": "fastscan",
-  "version": "1.0.0",
+  "name": "@okbawiss/fastscan",
+  "version": "1.0.1",
   "description": "High-performance file scanner using native mmap and finite state machines",
   "main": "src/index.js",
+  "bin": {
+    "fastscan": "./cli.js"
+  },
   "scripts": {
+    "install": "node-gyp rebuild",
     "build": "node-gyp build",
     "rebuild": "node-gyp rebuild",
     "test": "node test/api.test.js",
@@ -14,17 +18,56 @@
     "grep",
     "mmap",
     "native",
-    "performance"
+    "performance",
+    "cli",
+    "fast-search",
+    "fsm"
   ],
-  "author": "",
+  "author": "GUIAR OQBA <techokba@gmail.com>",
   "license": "MIT",
+
+  "engines": {
+    "node": ">=18"
+  },
+
+  "os": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+
+  "cpu": [
+    "x64"
+  ],
+
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okba14/FastScan.git"
+  },
+  "bugs": {
+    "url": "https://github.com/okba14/FastScan/issues"
+  },
+  "homepage": "https://github.com/okba14/FastScan#readme",
+
   "dependencies": {
     "bindings": "^1.5.0"
   },
+
   "devDependencies": {
     "node-gyp": "^12.1.0"
   },
+
   "gypfile": true,
+
+  "files": [
+    "src/",
+    "native/",
+    "cli.js",
+    "binding.gyp",
+    "README.md",
+    "LICENSE"
+  ],
+
   "overrides": {
     "tar": "7.5.7"
   }

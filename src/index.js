@@ -1,4 +1,6 @@
-const addon = require('../build/Release/fastscan.node');
+// const addon = require('../build/Release/fastscan.node');
+const addon = require('bindings')('fastscan.node'); 
+
 const { 
     FastScanError, 
     FileNotFoundError, 

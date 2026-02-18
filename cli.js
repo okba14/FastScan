@@ -1,27 +1,26 @@
-const fastscan = require('../src/index');
+#!/usr/bin/env node
+
+const fastscan = require('./src/index');
 const fs = require('fs');
 const path = require('path');
-
 
 const args = process.argv.slice(2);
 
 if (args.length < 2) {
-    console.log("Usage: node cli.js <filepath> <pattern> [maxMatches]");
+    console.log("Usage: fastscan <filepath> <pattern> [maxMatches]");
     process.exit(1);
 }
 
 const filepath = args[0];
 const pattern = args[1];
-const maxMatches = parseInt(args[2]) || 100;
-
-
+const maxMatches = parseInt(args[2]) || 100; 
 const CONTEXT_SIZE = 50; 
 
 console.log(`[*] Scanning: ${filepath}`);
 console.log(`[*] Pattern: "${pattern}"`);
 console.log(`[*] Please wait...\n`);
 
-// Use High-Level API from api.js (via index.js)
+// Use High-Level API
 fastscan.scanWithContext(filepath, pattern, { maxMatches })
     .then((results) => {
         const duration = results.time || 0; 
@@ -35,14 +34,12 @@ fastscan.scanWithContext(filepath, pattern, { maxMatches })
             const offset = item.offset;
             const snippet = item.snippet;
 
-
             console.log(`[Match #${i + 1}] Offset: ${offset}`);
             console.log(`   ... ${snippet} ...`);
             console.log();
         }
     })
     .catch((err) => {
-
         if (err.name === 'FileNotFoundError') {
             console.error("❌ Error: The specified file was not found.");
         } else if (err.name === 'MemoryError') {
@@ -52,13 +49,4 @@ fastscan.scanWithContext(filepath, pattern, { maxMatches })
         }
         process.exit(1);
     });
-
-
-const start = Date.now();
-const _originalScanWithContext = fastscan.scanWithContext;
-fastscan.scanWithContext = (file, pat, opts) => {
-    return _originalScanWithContext(file, pat, opts).then(res => {
-        console.log(`   Executed in: ${Date.now() - start} ms`);
-        return res;
-    });
-};
+    
