@@ -208,7 +208,7 @@ node cli.js big_data.log "ERROR" 10 30
 ```
 
 <p align="center">
-  <img src="screenShot/node-cli.js-big_data.log-ERROR-10%2030.png" alt="FastScan CLI Single Pattern with Line Coordinates" width="850">
+  <img src="screenShot/node-cli.js-big_data.log-ERROR-10_30.png" alt="FastScan CLI Single Pattern with Line Coordinates" width="850">
 </p>
 
 ---
@@ -220,7 +220,7 @@ node cli.js big_data.log "ERROR,DEBUG,Critical failure" 10
 ```
 
 <p align="center">
-  <img src="screenShot/nodecli-js-big_data-log-ERROR-DEBUG-Critical%20failure-10.png" alt="FastScan CLI Multi-Pattern Search" width="850">
+  <img src="screenShot/nodecli-js-big_data-log-ERROR-DEBUG-Critical_failure-10.png" alt="FastScan CLI Multi-Pattern Search" width="850">
 </p>
 
 ---
