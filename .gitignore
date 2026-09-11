@@ -7,6 +7,9 @@ build/
 *.node
 *.d
 
-# Logs
+# Logs & Generated test data
 npm-debug.log
 *.tgz
+*.log
+test/sandbox/
+

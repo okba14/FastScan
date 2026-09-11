@@ -25,5 +25,5 @@ try {
 } catch (err) {
     console.error("Error:", err.message);
 } finally {
-    
+    try { fs.unlinkSync(testFile); } catch (e) {}
 }

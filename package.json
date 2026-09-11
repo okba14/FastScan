@@ -11,6 +11,8 @@
     "build": "node-gyp build",
     "rebuild": "node-gyp rebuild",
     "test": "node test/api.test.js",
+    "benchmark": "node benchmarks/benchmark.js",
+    "generate-data": "node generate-data.js",
     "clean": "node-gyp clean"
   },
   "keywords": [

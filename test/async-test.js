@@ -2,13 +2,14 @@ const fastscan = require('../src/index');
 const path = require('path');
 const fs = require('fs');
 
-const testFile = path.join(__dirname, 'big_data.log');
+const testFile = path.join(__dirname, 'async_test_temp.log');
 const pattern = "ERROR";
 
+// Create 2MB test file on the fly
+fs.writeFileSync(testFile, "2023-10-25 [INFO] Processing data stream...\n2023-10-25 [ERROR] Critical failure detected\n".repeat(25000), 'utf8');
+
 console.log(`\n--- Async Test Started (Checking Non-Blocking behavior) ---\n`);
-
 console.log(`[Main Thread] I am alive! Starting search...`);
-
 
 const startTime = Date.now();
 
@@ -18,9 +19,11 @@ fastscan.scanFileAsync(testFile, pattern, 100000)
         console.log(`\n[Worker Thread] Scan finished!`);
         console.log(`[Worker Thread] Found ${matches.length} matches in ${duration} ms`);
         console.log(`[Main Thread] Promise resolved. Everything is smooth.`);
+        try { fs.unlinkSync(testFile); } catch (e) {}
     })
     .catch((err) => {
         console.error("Error:", err.message);
+        try { fs.unlinkSync(testFile); } catch (e) {}
     });
 
 
