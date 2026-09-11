@@ -1,7 +1,7 @@
 {
   "name": "@okbawiss/fastscan",
   "version": "1.0.1",
-  "description": "High-performance file scanner using native mmap and finite state machines",
+  "description": "Hardware-accelerated, zero-copy systems file scanner for Node.js powered by AVX-512/AVX2 SIMD, kernel mmap, and persistent thread pools.",
   "main": "src/index.js",
   "bin": {
     "fastscan": "./cli.js"
@@ -19,11 +19,21 @@
     "scanner",
     "grep",
     "mmap",
-    "native",
-    "performance",
-    "cli",
-    "fast-search",
-    "fsm"
+    "simd",
+    "avx-512",
+    "avx2",
+    "neon",
+    "zero-copy",
+    "thread-pool",
+    "high-performance",
+    "cybersecurity",
+    "threat-hunting",
+    "log-analysis",
+    "forensics",
+    "native-addon",
+    "napi",
+    "c",
+    "cli"
   ],
   "author": "GUIAR OQBA <contact@guiarx.com> (https://guiarx.com/)",
   "license": "MIT",
