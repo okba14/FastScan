@@ -3,32 +3,27 @@
 
 #include "safe_types.h"
 #include "config.h"
-
-
-typedef struct {
-    const fs_byte_t* data; 
-    fs_size_t size;        
-    int fd;                
-} fs_region_t;
-
+#include "platform.h"
+#include "cpu_features.h"
 
 typedef struct {
-    // Input
+    // Search Pattern
     const char* pattern;
     fs_size_t pattern_len;
 
-
+    // Memory-mapped region
     fs_region_t region;
 
-    
+    // Match output buffers
     fs_size_t* matches;
     fs_size_t match_count;
     fs_size_t max_matches;
 
+    // Detected CPU vector capabilities
+    fs_cpu_features_t cpu;
 
     int is_initialized;
 } fastscan_ctx_t;
-
 
 fs_status_t fastscan_init(fastscan_ctx_t* ctx, const char* pattern, fs_size_t max_results);
 fs_status_t fastscan_load_file(fastscan_ctx_t* ctx, const char* filepath);

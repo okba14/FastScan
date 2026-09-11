@@ -3,16 +3,9 @@
 
 #include "safe_types.h"
 
-
-#define FS_MAX_PATTERN_LEN 4096
-
-
-#define FS_IO_BLOCK_SIZE (1024 * 1024) 
-
-
+#define FS_MAX_PATTERN_LEN 8192
+#define FS_IO_BLOCK_SIZE (2 * 1024 * 1024) 
 #define FS_DEFAULT_MAX_MATCHES 100000
-
-
-#define FS_MEMORY_ALIGNMENT 4096
+#define FS_MEMORY_ALIGNMENT 64
 
 #endif // FASTSCAN_CONFIG_H

@@ -6,13 +6,15 @@
         "native/src/addon.c",
         "native/src/scanner.c",
         "native/src/mmap_reader.c",
-        "native/src/fastscan.c"
+        "native/src/fastscan.c",
+        "native/src/thread_pool.c"
       ],
       "include_dirs": [
         "native/include"
       ],
       "cflags": [
-        "-O3", 
+        "-O3",
+        "-mavx2",
         "-msse2",
         "-pthread",
         "-Wall"
@@ -24,33 +26,47 @@
         [
           "OS=='linux'",
           {
-            "defines": [ "_GNU_SOURCE" ]
+            "defines": [
+              "_GNU_SOURCE"
+            ]
           }
         ],
         [
           "OS=='mac'",
           {
             "xcode_settings": {
-              "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
-              "CLANG_CXX_LIBRARY": "libc++",
-              "MACOSX_DEPLOYMENT_TARGET": "10.7",
-              "OTHER_CFLAGS": [ "-O3", "-Wall" ]
+              "MACOSX_DEPLOYMENT_TARGET": "10.15",
+              "OTHER_CFLAGS": [
+                "-O3",
+                "-Wall"
+              ]
             }
           }
         ],
         [
           "OS=='win'",
           {
+            "defines": [
+              "WIN32_LEAN_AND_MEAN",
+              "_CRT_SECURE_NO_WARNINGS"
+            ],
             "msvs_settings": {
               "VCCLCompilerTool": {
-                "ExceptionHandling": 1,
-                "Optimization": "3"
+                "Optimization": "3",
+                "FavorSizeOrSpeed": "1",
+                "InlineFunctionExpansion": "2",
+                "AdditionalOptions": [
+                  "/O2",
+                  "/arch:AVX2"
+                ]
               }
             }
           }
         ]
       ],
-      "defines": [ "NAPI_DISABLE_CPP_EXCEPTIONS" ]
+      "defines": [
+        "NAPI_DISABLE_CPP_EXCEPTIONS"
+      ]
     }
   ]
 }
