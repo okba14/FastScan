@@ -292,4 +292,5 @@ If **FastScan Ultra** has contributed to your production architecture, high-freq
 ## 📜 License
 
 Distributed under the **MIT License**. Copyright © 2026 **GUIAR OQBA**.  
+See the full [LICENSE](LICENSE) file for open-source terms.  
 Engineered with absolute dedication to low-level systems performance, kernel-level acceleration, and high-assurance cybersecurity.
