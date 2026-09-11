@@ -5,10 +5,18 @@
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
     #include <immintrin.h>
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+    #endif
 #endif
 
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#define likely(x)   __builtin_expect(!!(x), 1)
+#if defined(__GNUC__) || defined(__clang__)
+    #define unlikely(x) __builtin_expect(!!(x), 0)
+    #define likely(x)   __builtin_expect(!!(x), 1)
+#else
+    #define unlikely(x) (x)
+    #define likely(x)   (x)
+#endif
 
 #define FS_PREFETCH_DIST 512
 
@@ -473,11 +481,13 @@ fs_status_t fs_calculate_line_col(const fs_byte_t* data, fs_size_t total_size, f
         if (mask != 0) {
 #if defined(_MSC_VER) && !defined(__clang__)
             lines += __popcnt(mask);
+            unsigned long last_bit_idx;
+            _BitScanReverse(&last_bit_idx, mask);
+            int last_bit = (int)last_bit_idx;
 #else
             lines += __builtin_popcount(mask);
-#endif
-            // Find most recent newline in this 32-byte chunk
             int last_bit = 31 - __builtin_clz(mask);
+#endif
             last_newline = p + last_bit;
         }
         p += 32;

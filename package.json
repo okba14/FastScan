@@ -56,7 +56,7 @@
   },
 
   "devDependencies": {
-    "node-gyp": "^12.1.0"
+    "node-gyp": "^13.0.2"
   },
 
   "gypfile": true,
@@ -71,6 +71,6 @@
   ],
 
   "overrides": {
-    "tar": "7.5.7"
+    "tar": "^7.5.22"
   }
 }
