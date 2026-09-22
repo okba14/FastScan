@@ -14,8 +14,6 @@
       ],
       "cflags": [
         "-O3",
-        "-mavx2",
-        "-msse2",
         "-pthread",
         "-Wall"
       ],
@@ -23,6 +21,23 @@
         "-pthread"
       ],
       "conditions": [
+        [
+          "target_arch=='x64' or target_arch=='ia32'",
+          {
+            "cflags": [
+              "-mavx2",
+              "-msse2"
+            ]
+          }
+        ],
+        [
+          "target_arch=='arm64'",
+          {
+            "defines": [
+              "__ARM_NEON"
+            ]
+          }
+        ],
         [
           "OS=='linux'",
           {

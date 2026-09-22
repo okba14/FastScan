@@ -41,10 +41,18 @@ class MappingError extends FastScanError {
     }
 }
 
+class UnsupportedFileTypeError extends FastScanError {
+    constructor(message) {
+        super(message || 'Unsupported file type (directories and special devices not supported)', 'FS_UNSUPPORTED_FILE_TYPE', 'open');
+        this.name = 'UnsupportedFileTypeError';
+    }
+}
+
 module.exports = {
     FastScanError,
     FileNotFoundError,
     MemoryError,
     InvalidArgumentError,
-    MappingError
+    MappingError,
+    UnsupportedFileTypeError
 };

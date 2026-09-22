@@ -6,27 +6,52 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FS_MIN_CHUNK_PER_THREAD (16 * 1024 * 1024)
+#define FS_MIN_CHUNK_PER_THREAD (64 * 1024 * 1024)
 
-fs_status_t fastscan_init(fastscan_ctx_t* ctx, const char* pattern, fs_size_t max_results) {
-    if (!ctx || !pattern) return FS_ERROR_NULL_PTR;
-
+fs_status_t fastscan_init_binary(fastscan_ctx_t* ctx, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t max_results) {
+    if (!ctx) return FS_ERROR_NULL_PTR;
     memset(ctx, 0, sizeof(fastscan_ctx_t));
-    ctx->pattern = pattern;
-    ctx->pattern_len = strlen(pattern);
+
+    if (!pattern || pattern_len == 0) {
+        ctx->is_initialized = 1;
+        ctx->max_matches = (max_results == 0) ? FS_DEFAULT_MAX_MATCHES : max_results;
+        ctx->cpu = fs_detect_cpu_features();
+        return FS_SUCCESS;
+    }
+
+    ctx->owned_pattern = (char*)malloc(pattern_len + 1);
+    if (!ctx->owned_pattern) return FS_ERROR_OUT_OF_BOUNDS;
+
+    memcpy(ctx->owned_pattern, pattern, pattern_len);
+    ctx->owned_pattern[pattern_len] = '\0';
+
+    ctx->pattern = ctx->owned_pattern;
+    ctx->pattern_len = pattern_len;
     ctx->max_matches = (max_results == 0) ? FS_DEFAULT_MAX_MATCHES : max_results;
     ctx->cpu = fs_detect_cpu_features();
     ctx->is_initialized = 1;
 
-    // Ensure persistent pool is warmed up in background
+    // Pre-warm global pool
     fs_thread_pool_get_global();
-
     return FS_SUCCESS;
+}
+
+fs_status_t fastscan_init(fastscan_ctx_t* ctx, const char* pattern, fs_size_t max_results) {
+    if (!pattern) return fastscan_init_binary(ctx, NULL, 0, max_results);
+    return fastscan_init_binary(ctx, (const fs_byte_t*)pattern, strlen(pattern), max_results);
 }
 
 fs_status_t fastscan_load_file(fastscan_ctx_t* ctx, const char* filepath) {
     if (!ctx) return FS_ERROR_NULL_PTR;
     return fs_mmap_open(filepath, &ctx->region);
+}
+
+fs_status_t fastscan_load_buffer(fastscan_ctx_t* ctx, const fs_byte_t* buffer, fs_size_t buffer_len) {
+    if (!ctx) return FS_ERROR_NULL_PTR;
+    ctx->region.data = buffer;
+    ctx->region.size = buffer_len;
+    ctx->region.is_mmap = 0;
+    return FS_SUCCESS;
 }
 
 fs_status_t fastscan_execute(fastscan_ctx_t* ctx) {
@@ -36,21 +61,19 @@ fs_status_t fastscan_execute(fastscan_ctx_t* ctx) {
     const fs_byte_t* pattern = (const fs_byte_t*)ctx->pattern;
     const fs_size_t pattern_len = ctx->pattern_len;
 
-    if (total_size < pattern_len) {
+    if (!pattern || pattern_len == 0 || total_size < pattern_len || !ctx->region.data) {
         ctx->match_count = 0;
         ctx->matches = NULL;
         return FS_SUCCESS;
     }
 
-    int ncores = fs_platform_get_cpu_cores();
-
-    // Scale threads according to data size to ensure thread dispatch overhead never exceeds scan time
-    int max_threads = ncores > 1 ? (ncores > 16 ? 16 : ncores) : 1;
+    int pool_workers = fs_thread_pool_get_worker_count();
+    int max_threads = pool_workers > 1 ? (pool_workers > FS_MAX_POOL_WORKERS ? FS_MAX_POOL_WORKERS : pool_workers) : 1;
     int needed_threads = (int)(total_size / FS_MIN_CHUNK_PER_THREAD);
     if (needed_threads < 1) needed_threads = 1;
     if (needed_threads > max_threads) needed_threads = max_threads;
 
-    // Single-threaded fast path: zero dispatch, maximum L1/L2 cache locality
+    // Single-threaded fast path: zero dispatch overhead, maximum L1/L2 cache locality
     if (needed_threads <= 1) {
         ctx->matches = (fs_size_t*)malloc(sizeof(fs_size_t) * ctx->max_matches);
         if (!ctx->matches) return FS_ERROR_OUT_OF_BOUNDS;
@@ -75,7 +98,7 @@ fs_status_t fastscan_execute(fastscan_ctx_t* ctx) {
         tasks[i].cpu = ctx->cpu;
     }
 
-    // Ultra-fast sub-microsecond dispatch to warm persistent thread pool
+    // Dispatch to mutex-protected persistent worker pool
     fs_thread_pool_dispatch(tasks, nth);
 
     fs_size_t total_found = 0;
@@ -104,11 +127,16 @@ fs_status_t fastscan_execute(fastscan_ctx_t* ctx) {
     ctx->match_count = 0;
     for (int i = 0; i < nth; i++) {
         if (tasks[i].matches) {
-            for (fs_size_t j = 0; j < tasks[i].count; j++) {
-                if (ctx->match_count >= final_cnt) break;
-                ctx->matches[ctx->match_count++] = tasks[i].matches[j];
+            fs_size_t to_copy = tasks[i].count;
+            if (ctx->match_count + to_copy > final_cnt) {
+                to_copy = final_cnt - ctx->match_count;
+            }
+            if (to_copy > 0) {
+                memcpy(&ctx->matches[ctx->match_count], tasks[i].matches, to_copy * sizeof(fs_size_t));
+                ctx->match_count += to_copy;
             }
             free(tasks[i].matches);
+            tasks[i].matches = NULL;
         }
     }
 
@@ -119,6 +147,12 @@ void fastscan_destroy(fastscan_ctx_t* ctx) {
     if (!ctx) return;
 
     fs_mmap_close(&ctx->region);
+
+    if (ctx->owned_pattern) {
+        free(ctx->owned_pattern);
+        ctx->owned_pattern = NULL;
+        ctx->pattern = NULL;
+    }
 
     if (ctx->matches) {
         free(ctx->matches);

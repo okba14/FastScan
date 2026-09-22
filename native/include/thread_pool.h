@@ -26,6 +26,7 @@ typedef struct {
 typedef struct fs_thread_pool fs_thread_pool_t;
 
 fs_thread_pool_t* fs_thread_pool_get_global(void);
+int fs_thread_pool_get_worker_count(void);
 int fs_thread_pool_dispatch(fs_worker_task_t* tasks, int task_count);
 void fs_thread_pool_shutdown(void);
 

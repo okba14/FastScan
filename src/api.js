@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 
 let addon;
 try {
@@ -26,7 +27,7 @@ function ensureAddon() {
  * Uses native memory-mapped zero-syscall context extraction in C.
  * 
  * @param {string} filepath - Path to file
- * @param {string} pattern - Pattern to find
+ * @param {string|Buffer} pattern - Pattern to find
  * @param {object} options - { maxMatches, contextBefore, contextAfter, contextSize }
  * @returns {Promise<Array<{offset: bigint, snippet: string}>>}
  */
@@ -52,32 +53,40 @@ async function scanWithContext(filepath, pattern, options = {}) {
     }
 
     const offsets = addon.scanFile(resolvedPath, pattern, maxMatches);
-    const fs = require('fs');
-    const fd = fs.openSync(resolvedPath, 'r');
-    const stat = fs.fstatSync(fd);
+    let fd;
     const results = [];
 
-    for (const offset of offsets) {
-        const numOffset = Number(offset);
-        const readStart = Math.max(0, numOffset - contextBefore);
-        const readLen = Math.min(contextBefore + contextAfter, stat.size - readStart);
-        const buffer = Buffer.allocUnsafe(readLen);
-        fs.readSync(fd, buffer, 0, readLen, readStart);
-        results.push({
-            offset,
-            snippet: buffer.toString('utf8')
-        });
+    try {
+        fd = fs.openSync(resolvedPath, 'r');
+        const stat = fs.fstatSync(fd);
+
+        for (const offset of offsets) {
+            const numOffset = Number(offset);
+            const readStart = Math.max(0, numOffset - contextBefore);
+            const readLen = Math.min(contextBefore + contextAfter, stat.size - readStart);
+            if (readLen <= 0) continue;
+            const buffer = Buffer.allocUnsafe(readLen);
+            fs.readSync(fd, buffer, 0, readLen, readStart);
+            results.push({
+                offset,
+                snippet: buffer.toString('utf8')
+            });
+        }
+    } finally {
+        if (fd !== undefined) {
+            try { fs.closeSync(fd); } catch (e) {}
+        }
     }
-    fs.closeSync(fd);
+
     return results;
 }
 
 /**
  * Advanced API: High-performance search returning exact Line and Column positions.
- * Uses SIMD-vectorized newline indexing at 40+ GB/s.
+ * Uses SIMD-vectorized newline indexing at 40+ GB/s in O(N) single-pass.
  * 
  * @param {string} filepath - Path to file
- * @param {string} pattern - Pattern to find
+ * @param {string|Buffer} pattern - Pattern to find
  * @param {object} options - { maxMatches, contextBefore, contextAfter, contextSize }
  * @returns {Promise<Array<{offset: bigint, line: number, column: number, snippet: string}>>}
  */
@@ -102,7 +111,6 @@ async function scanWithPositions(filepath, pattern, options = {}) {
         );
     }
 
-    // Fallback: use scanWithContext
     return scanWithContext(filepath, pattern, options);
 }
 
@@ -126,13 +134,28 @@ function scanFileMulti(filepath, patterns, maxMatches = 100000) {
 
 /**
  * Asynchronous Multi-Pattern Single-Pass Scanner.
- * Non-blocking for the Node.js event loop.
+ * Non-blocking for the Node.js event loop powered by native worker threads.
+ * 
+ * @param {string} filepath - Path to file
+ * @param {string[]} patterns - Array of patterns to search for
+ * @param {number} maxMatches - Maximum results
+ * @returns {Promise<Array<{patternIndex: number, pattern: string, offset: bigint}>>}
  */
 async function scanFileMultiAsync(filepath, patterns, maxMatches = 100000) {
+    ensureAddon();
+    if (!Array.isArray(patterns) || patterns.length === 0) {
+        throw new TypeError("patterns must be a non-empty array of strings");
+    }
+    const resolvedPath = path.resolve(filepath);
+
+    if (addon.scanFileMultiAsync) {
+        return addon.scanFileMultiAsync(resolvedPath, patterns, maxMatches);
+    }
+
     return new Promise((resolve, reject) => {
         setImmediate(() => {
             try {
-                const res = scanFileMulti(filepath, patterns, maxMatches);
+                const res = addon.scanFileMulti(resolvedPath, patterns, maxMatches);
                 resolve(res);
             } catch (err) {
                 reject(err);

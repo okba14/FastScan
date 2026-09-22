@@ -28,6 +28,7 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
 
     region->data = NULL;
     region->size = 0;
+    region->is_mmap = 0;
     region->h_file = INVALID_HANDLE_VALUE;
     region->h_map = NULL;
 
@@ -40,10 +41,16 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
 
     MultiByteToWideChar(CP_UTF8, 0, filepath, -1, wpath, wlen);
 
+    DWORD attrs = GetFileAttributesW(wpath);
+    if (attrs == INVALID_FILE_ATTRIBUTES || (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+        free(wpath);
+        return (attrs == INVALID_FILE_ATTRIBUTES) ? FS_ERROR_OPEN_FAILED : FS_ERROR_UNSUPPORTED_FILE_TYPE;
+    }
+
     HANDLE h_file = CreateFileW(
         wpath,
         GENERIC_READ,
-        FILE_SHARE_READ | FILE_SHARE_WRITE, // Sharing permits active log readers
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         NULL,
         OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
@@ -55,6 +62,12 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
         return FS_ERROR_OPEN_FAILED;
     }
 
+    DWORD file_type = GetFileType(h_file);
+    if (file_type != FILE_TYPE_DISK) {
+        CloseHandle(h_file);
+        return FS_ERROR_UNSUPPORTED_FILE_TYPE;
+    }
+
     LARGE_INTEGER file_size;
     if (!GetFileSizeEx(h_file, &file_size)) {
         CloseHandle(h_file);
@@ -64,6 +77,7 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
     fs_size_t size = (fs_size_t)file_size.QuadPart;
     if (size == 0) {
         region->h_file = h_file;
+        region->is_mmap = 1;
         return FS_SUCCESS;
     }
 
@@ -99,12 +113,19 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
     region->size = size;
     region->h_file = h_file;
     region->h_map = h_map;
+    region->is_mmap = 1;
+
+    // Kernel hint: prefetch virtual memory into page cache
+    WIN32_MEMORY_RANGE_ENTRY range;
+    range.VirtualAddress = map_view;
+    range.NumberOfBytes = size;
+    PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0);
 
     return FS_SUCCESS;
 }
 
 void fs_mmap_close(fs_region_t* region) {
-    if (!region) return;
+    if (!region || !region->is_mmap) return;
 
     if (region->data) {
         UnmapViewOfFile(region->data);
@@ -122,6 +143,7 @@ void fs_mmap_close(fs_region_t* region) {
     }
 
     region->size = 0;
+    region->is_mmap = 0;
 }
 
 fs_status_t fs_get_file_size(const char* filepath, fs_size_t* out_size) {
@@ -178,8 +200,10 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
     region->data = NULL;
     region->size = 0;
     region->fd = -1;
+    region->is_mmap = 0;
 
-    int fd = open(filepath, O_RDONLY);
+    // Use O_NONBLOCK to prevent hanging indefinitely on FIFOs / named pipes
+    int fd = open(filepath, O_RDONLY | O_NONBLOCK);
     if (fd == -1) return FS_ERROR_OPEN_FAILED;
 
     struct stat st;
@@ -188,9 +212,16 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
         return FS_ERROR_OPEN_FAILED;
     }
 
+    // Verify it is a regular file (reject directories, FIFOs, sockets, character/block devices)
+    if (!S_ISREG(st.st_mode)) {
+        close(fd);
+        return FS_ERROR_UNSUPPORTED_FILE_TYPE;
+    }
+
     fs_size_t size = (fs_size_t)st.st_size;
     if (size == 0) {
         region->fd = fd;
+        region->is_mmap = 1;
         return FS_SUCCESS;
     }
 
@@ -205,16 +236,23 @@ fs_status_t fs_mmap_open(const char* filepath, fs_region_t* region) {
 #if defined(MADV_SEQUENTIAL)
     madvise(map, size, MADV_SEQUENTIAL);
 #endif
+#if defined(MADV_WILLNEED)
+    madvise(map, size, MADV_WILLNEED);
+#endif
+#if defined(MADV_HUGEPAGE)
+    madvise(map, size, MADV_HUGEPAGE);
+#endif
 
     region->data = (const fs_byte_t*)map;
     region->size = size;
     region->fd = fd;
+    region->is_mmap = 1;
 
     return FS_SUCCESS;
 }
 
 void fs_mmap_close(fs_region_t* region) {
-    if (!region) return;
+    if (!region || !region->is_mmap) return;
 
     if (region->data && region->size > 0) {
 #if defined(MADV_DONTNEED)
@@ -230,6 +268,7 @@ void fs_mmap_close(fs_region_t* region) {
     }
 
     region->size = 0;
+    region->is_mmap = 0;
 }
 
 fs_status_t fs_get_file_size(const char* filepath, fs_size_t* out_size) {

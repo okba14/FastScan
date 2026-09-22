@@ -10,7 +10,7 @@
     "install": "node-gyp rebuild",
     "build": "node-gyp build",
     "rebuild": "node-gyp rebuild",
-    "test": "node test/api.test.js",
+    "test": "node test/api.test.js && node test/boundary.test.js && node test/hardened.test.js && node test/chunk-drop.test.js",
     "benchmark": "node benchmarks/benchmark.js",
     "generate-data": "node generate-data.js",
     "clean": "node-gyp clean"
@@ -49,7 +49,8 @@
   ],
 
   "cpu": [
-    "x64"
+    "x64",
+    "arm64"
   ],
 
   "repository": {

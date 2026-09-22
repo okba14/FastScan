@@ -28,10 +28,11 @@ static inline int verify_match(const fs_byte_t* str, const fs_byte_t* pattern, f
 
 // Scalar fallback scanner
 fs_status_t fs_scan_scalar(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches) {
-    if (unlikely(max_matches == 0 || data_len < pattern_len)) {
-        *match_count = 0;
+    if (unlikely(max_matches == 0 || data_len < pattern_len || pattern_len == 0 || !data || !pattern || !out_matches || !match_count)) {
+        if (match_count) *match_count = 0;
         return FS_SUCCESS;
     }
+    *match_count = 0;
 
     const fs_byte_t* start = data;
     const fs_byte_t* limit = data + data_len - pattern_len + 1;
@@ -67,10 +68,11 @@ fs_status_t fs_scan_scalar(const fs_byte_t* data, fs_size_t data_len, const fs_b
 // AVX-512 High-Throughput 128-Byte Unrolled Scanner
 #if defined(__AVX512F__) && defined(__AVX512BW__)
 fs_status_t fs_scan_avx512(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches) {
-    if (unlikely(max_matches == 0 || data_len < pattern_len)) {
-        *match_count = 0;
+    if (unlikely(max_matches == 0 || data_len < pattern_len || pattern_len == 0 || !data || !pattern || !out_matches || !match_count)) {
+        if (match_count) *match_count = 0;
         return FS_SUCCESS;
     }
+    *match_count = 0;
 
     const fs_byte_t* start = data;
     const fs_byte_t* limit = data + data_len - pattern_len + 1;
@@ -177,10 +179,11 @@ fs_status_t fs_scan_avx512(const fs_byte_t* data, fs_size_t data_len, const fs_b
 // AVX2 High-Throughput Unrolled Scanner (64 bytes per iteration)
 #if defined(__AVX2__) || (defined(_MSC_VER) && (defined(__AVX2__) || defined(_M_X64)))
 fs_status_t fs_scan_avx2(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches) {
-    if (unlikely(max_matches == 0 || data_len < pattern_len)) {
-        *match_count = 0;
+    if (unlikely(max_matches == 0 || data_len < pattern_len || pattern_len == 0 || !data || !pattern || !out_matches || !match_count)) {
+        if (match_count) *match_count = 0;
         return FS_SUCCESS;
     }
+    *match_count = 0;
 
     const fs_byte_t* start = data;
     const fs_byte_t* limit = data + data_len - pattern_len + 1;
@@ -203,7 +206,31 @@ fs_status_t fs_scan_avx2(const fs_byte_t* data, fs_size_t data_len, const fs_byt
         unsigned int mask0 = (unsigned int)_mm256_movemask_epi8(cmp0);
         unsigned int mask1 = (unsigned int)_mm256_movemask_epi8(cmp1);
 
-        if (pattern_len > 1) {
+        if (pattern_len == 1) {
+            while (mask0 != 0) {
+#if defined(_MSC_VER) && !defined(__clang__)
+                unsigned long offset;
+                _BitScanForward(&offset, mask0);
+#else
+                int offset = __builtin_ctz(mask0);
+#endif
+                out_matches[(*match_count)++] = (fs_size_t)(start + offset - data);
+                if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                mask0 &= mask0 - 1;
+            }
+
+            while (mask1 != 0) {
+#if defined(_MSC_VER) && !defined(__clang__)
+                unsigned long offset;
+                _BitScanForward(&offset, mask1);
+#else
+                int offset = __builtin_ctz(mask1);
+#endif
+                out_matches[(*match_count)++] = (fs_size_t)(start + 32 + offset - data);
+                if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                mask1 &= mask1 - 1;
+            }
+        } else {
             if (mask0 != 0 && start + last_idx + 32 <= data + data_len) {
                 __m256i last0 = _mm256_loadu_si256((const __m256i*)(start + last_idx));
                 mask0 &= (unsigned int)_mm256_movemask_epi8(_mm256_cmpeq_epi8(last0, last_vec));
@@ -212,40 +239,40 @@ fs_status_t fs_scan_avx2(const fs_byte_t* data, fs_size_t data_len, const fs_byt
                 __m256i last1 = _mm256_loadu_si256((const __m256i*)(start + 32 + last_idx));
                 mask1 &= (unsigned int)_mm256_movemask_epi8(_mm256_cmpeq_epi8(last1, last_vec));
             }
-        }
 
-        while (mask0 != 0) {
+            while (mask0 != 0) {
 #if defined(_MSC_VER) && !defined(__clang__)
-            unsigned long offset;
-            _BitScanForward(&offset, mask0);
+                unsigned long offset;
+                _BitScanForward(&offset, mask0);
 #else
-            int offset = __builtin_ctz(mask0);
+                int offset = __builtin_ctz(mask0);
 #endif
-            const fs_byte_t* candidate = start + offset;
-            if (candidate < limit) {
-                if (verify_match(candidate, pattern, pattern_len)) {
-                    out_matches[(*match_count)++] = (fs_size_t)(candidate - data);
-                    if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                const fs_byte_t* candidate = start + offset;
+                if (candidate < limit) {
+                    if (verify_match(candidate, pattern, pattern_len)) {
+                        out_matches[(*match_count)++] = (fs_size_t)(candidate - data);
+                        if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                    }
                 }
+                mask0 &= mask0 - 1;
             }
-            mask0 &= mask0 - 1;
-        }
 
-        while (mask1 != 0) {
+            while (mask1 != 0) {
 #if defined(_MSC_VER) && !defined(__clang__)
-            unsigned long offset;
-            _BitScanForward(&offset, mask1);
+                unsigned long offset;
+                _BitScanForward(&offset, mask1);
 #else
-            int offset = __builtin_ctz(mask1);
+                int offset = __builtin_ctz(mask1);
 #endif
-            const fs_byte_t* candidate = start + 32 + offset;
-            if (candidate < limit) {
-                if (verify_match(candidate, pattern, pattern_len)) {
-                    out_matches[(*match_count)++] = (fs_size_t)(candidate - data);
-                    if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                const fs_byte_t* candidate = start + 32 + offset;
+                if (candidate < limit) {
+                    if (verify_match(candidate, pattern, pattern_len)) {
+                        out_matches[(*match_count)++] = (fs_size_t)(candidate - data);
+                        if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                    }
                 }
+                mask1 &= mask1 - 1;
             }
-            mask1 &= mask1 - 1;
         }
 
         start += 64;
@@ -305,10 +332,11 @@ fs_status_t fs_scan_avx2(const fs_byte_t* data, fs_size_t data_len, const fs_byt
 // SSE2 Vectorized Scanner (32 bytes per iteration unrolled)
 fs_status_t fs_scan_sse2(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches) {
 #if defined(__SSE2__) || defined(_M_X64) || defined(_M_IX86)
-    if (unlikely(max_matches == 0 || data_len < pattern_len)) {
-        *match_count = 0;
+    if (unlikely(max_matches == 0 || data_len < pattern_len || pattern_len == 0 || !data || !pattern || !out_matches || !match_count)) {
+        if (match_count) *match_count = 0;
         return FS_SUCCESS;
     }
+    *match_count = 0;
 
     const fs_byte_t* start = data;
     const fs_byte_t* limit = data + data_len - pattern_len + 1;
@@ -394,8 +422,171 @@ fs_status_t fs_scan_sse2(const fs_byte_t* data, fs_size_t data_len, const fs_byt
 #endif
 }
 
-// Unified raw scanner with dynamic runtime CPU dispatch (AVX-512 -> AVX2 -> SSE2 -> Scalar)
+// ARM NEON Vectorized Scanner (32 bytes per iteration)
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(_M_ARM64)
+#include <arm_neon.h>
+
+fs_status_t fs_scan_neon(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches) {
+    if (unlikely(max_matches == 0 || data_len < pattern_len || pattern_len == 0 || !data || !pattern || !out_matches || !match_count)) {
+        if (match_count) *match_count = 0;
+        return FS_SUCCESS;
+    }
+    *match_count = 0;
+
+    const fs_byte_t* start = data;
+    const fs_byte_t* limit = data + data_len - pattern_len + 1;
+    const fs_byte_t* neon_limit = data + data_len - 32;
+
+    uint8x16_t first_vec = vdupq_n_u8(pattern[0]);
+    fs_size_t last_idx = pattern_len - 1;
+    uint8x16_t last_vec = vdupq_n_u8(pattern[last_idx]);
+
+    while (start <= neon_limit && start < limit) {
+        uint8x16_t chunk0 = vld1q_u8(start);
+        uint8x16_t chunk1 = vld1q_u8(start + 16);
+
+        uint8x16_t cmp0 = vceqq_u8(chunk0, first_vec);
+        uint8x16_t cmp1 = vceqq_u8(chunk1, first_vec);
+
+        if (pattern_len > 1) {
+            if (start + last_idx + 16 <= data + data_len) {
+                uint8x16_t last0 = vld1q_u8(start + last_idx);
+                cmp0 = vandq_u8(cmp0, vceqq_u8(last0, last_vec));
+            }
+            if (start + 16 + last_idx + 16 <= data + data_len) {
+                uint8x16_t last1 = vld1q_u8(start + 16 + last_idx);
+                cmp1 = vandq_u8(cmp1, vceqq_u8(last1, last_vec));
+            }
+        }
+
+        uint8x8_t narrow0 = vmovn_u16(vreinterpretq_u16_u8(cmp0));
+        if (vget_lane_u64(vreinterpret_u64_u8(narrow0), 0) != 0) {
+            uint8_t res[16];
+            vst1q_u8(res, cmp0);
+            for (int i = 0; i < 16; i++) {
+                if (res[i] != 0) {
+                    const fs_byte_t* candidate = start + i;
+                    if (candidate < limit && verify_match(candidate, pattern, pattern_len)) {
+                        out_matches[(*match_count)++] = (fs_size_t)(candidate - data);
+                        if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                    }
+                }
+            }
+        }
+
+        uint8x8_t narrow1 = vmovn_u16(vreinterpretq_u16_u8(cmp1));
+        if (vget_lane_u64(vreinterpret_u64_u8(narrow1), 0) != 0) {
+            uint8_t res[16];
+            vst1q_u8(res, cmp1);
+            for (int i = 0; i < 16; i++) {
+                if (res[i] != 0) {
+                    const fs_byte_t* candidate = start + 16 + i;
+                    if (candidate < limit && verify_match(candidate, pattern, pattern_len)) {
+                        out_matches[(*match_count)++] = (fs_size_t)(candidate - data);
+                        if (unlikely(*match_count >= max_matches)) return FS_SUCCESS;
+                    }
+                }
+            }
+        }
+
+        start += 32;
+    }
+
+    while (start < limit) {
+        if (*start == pattern[0]) {
+            if (pattern_len == 1 || *(start + last_idx) == pattern[last_idx]) {
+                if (verify_match(start, pattern, pattern_len)) {
+                    out_matches[(*match_count)++] = (fs_size_t)(start - data);
+                    if (*match_count >= max_matches) return FS_SUCCESS;
+                }
+            }
+        }
+        start++;
+    }
+
+    return FS_SUCCESS;
+}
+#else
+fs_status_t fs_scan_neon(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches) {
+    return fs_scan_scalar(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+}
+#endif
+
+#if defined(FS_PLATFORM_POSIX)
+static __thread sigjmp_buf g_fs_posix_sigbus_jmp;
+static __thread volatile sig_atomic_t g_fs_posix_sigbus_active = 0;
+
+static void fs_posix_sigbus_handler(int sig, siginfo_t* info, void* uctx) {
+    (void)sig; (void)info; (void)uctx;
+    if (g_fs_posix_sigbus_active) {
+        siglongjmp(g_fs_posix_sigbus_jmp, 1);
+    }
+}
+#endif
+
+// Unified raw scanner with dynamic runtime CPU dispatch (AVX-512 -> AVX2 -> NEON -> SSE2 -> Scalar)
 fs_status_t fs_scan_raw(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches, const fs_cpu_features_t* cpu) {
+    if (unlikely(!data || !pattern || pattern_len == 0 || max_matches == 0 || data_len < pattern_len || !out_matches || !match_count)) {
+        if (match_count) *match_count = 0;
+        return FS_SUCCESS;
+    }
+
+#if defined(_MSC_VER)
+    __try {
+#if defined(__AVX512F__) && defined(__AVX512BW__)
+        if (cpu && cpu->has_avx512) {
+            return fs_scan_avx512(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+        }
+#endif
+        if (cpu && cpu->has_avx2) {
+            return fs_scan_avx2(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+        } else if (cpu && cpu->has_neon) {
+            return fs_scan_neon(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+        } else if (cpu && cpu->has_sse2) {
+            return fs_scan_sse2(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+        }
+        return fs_scan_scalar(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+    }
+    __except ((GetExceptionCode() == 0xC0000006L /* STATUS_IN_PAGE_ERROR */ || GetExceptionCode() == 0xC0000005L /* STATUS_ACCESS_VIOLATION */) ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+        if (match_count) *match_count = 0;
+        return FS_ERROR_FILE_TRUNCATED;
+    }
+#elif defined(FS_PLATFORM_POSIX)
+    struct sigaction sa, old_sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = fs_posix_sigbus_handler;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGBUS, &sa, &old_sa);
+
+    g_fs_posix_sigbus_active = 1;
+    if (sigsetjmp(g_fs_posix_sigbus_jmp, 1) != 0) {
+        g_fs_posix_sigbus_active = 0;
+        sigaction(SIGBUS, &old_sa, NULL);
+        if (match_count) *match_count = 0;
+        return FS_ERROR_FILE_TRUNCATED;
+    }
+
+    fs_status_t status = FS_SUCCESS;
+#if defined(__AVX512F__) && defined(__AVX512BW__)
+    if (cpu && cpu->has_avx512) {
+        status = fs_scan_avx512(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+    } else
+#endif
+    if (cpu && cpu->has_avx2) {
+        status = fs_scan_avx2(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+    } else if (cpu && cpu->has_neon) {
+        status = fs_scan_neon(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+    } else if (cpu && cpu->has_sse2) {
+        status = fs_scan_sse2(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+    } else {
+        status = fs_scan_scalar(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+    }
+
+    g_fs_posix_sigbus_active = 0;
+    sigaction(SIGBUS, &old_sa, NULL);
+    return status;
+#else
 #if defined(__AVX512F__) && defined(__AVX512BW__)
     if (cpu && cpu->has_avx512) {
         return fs_scan_avx512(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
@@ -403,10 +594,13 @@ fs_status_t fs_scan_raw(const fs_byte_t* data, fs_size_t data_len, const fs_byte
 #endif
     if (cpu && cpu->has_avx2) {
         return fs_scan_avx2(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+    } else if (cpu && cpu->has_neon) {
+        return fs_scan_neon(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
     } else if (cpu && cpu->has_sse2) {
         return fs_scan_sse2(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
     }
     return fs_scan_scalar(data, data_len, pattern, pattern_len, out_matches, match_count, max_matches);
+#endif
 }
 
 // Multi-pattern Single-Pass Scanning Engine
@@ -504,6 +698,56 @@ fs_status_t fs_calculate_line_col(const fs_byte_t* data, fs_size_t total_size, f
 
     *out_line = lines;
     *out_col = (last_newline == data && *data != '\n') ? (offset + 1) : (offset - (last_newline - data));
+    return FS_SUCCESS;
+}
+
+// Vectorized Batch Line & Column Indexer (Linear O(N) single-pass across all sorted match offsets)
+fs_status_t fs_calculate_line_col_batch(const fs_byte_t* data, fs_size_t total_size, const fs_size_t* offsets, fs_size_t offset_count, fs_size_t* out_lines, fs_size_t* out_cols) {
+    if (!data || !offsets || !out_lines || !out_cols) return FS_ERROR_INVALID_ARG;
+    if (offset_count == 0) return FS_SUCCESS;
+
+    fs_size_t current_line = 1;
+    const fs_byte_t* last_newline = data;
+    const fs_byte_t* p = data;
+
+    for (fs_size_t i = 0; i < offset_count; i++) {
+        fs_size_t target_offset = offsets[i];
+        if (target_offset > total_size) target_offset = total_size;
+        const fs_byte_t* target = data + target_offset;
+
+#if defined(__AVX2__) || (defined(_MSC_VER) && (defined(__AVX2__) || defined(_M_X64)))
+        const __m256i nl_vec = _mm256_set1_epi8('\n');
+        while (p + 32 <= target) {
+            __m256i chunk = _mm256_loadu_si256((const __m256i*)p);
+            unsigned int mask = (unsigned int)_mm256_movemask_epi8(_mm256_cmpeq_epi8(chunk, nl_vec));
+            if (mask != 0) {
+#if defined(_MSC_VER) && !defined(__clang__)
+                current_line += __popcnt(mask);
+                unsigned long last_bit_idx;
+                _BitScanReverse(&last_bit_idx, mask);
+                last_newline = p + (int)last_bit_idx;
+#else
+                current_line += __builtin_popcount(mask);
+                int last_bit = 31 - __builtin_clz(mask);
+                last_newline = p + last_bit;
+#endif
+            }
+            p += 32;
+        }
+#endif
+
+        while (p < target) {
+            if (*p == '\n') {
+                current_line++;
+                last_newline = p;
+            }
+            p++;
+        }
+
+        out_lines[i] = current_line;
+        out_cols[i] = (last_newline == data && *data != '\n') ? (target_offset + 1) : (target_offset - (last_newline - data));
+    }
+
     return FS_SUCCESS;
 }
 

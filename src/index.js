@@ -20,7 +20,8 @@ const {
     FileNotFoundError, 
     MemoryError, 
     InvalidArgumentError,
-    MappingError 
+    MappingError,
+    UnsupportedFileTypeError
 } = require('./errors');
 
 const { 
@@ -36,7 +37,8 @@ const ERROR_MAP = {
     'Memory mapping failed': MappingError,
     'Buffer allocation failed': MemoryError,
     'Invalid argument': InvalidArgumentError,
-    'File truncated during scan': MemoryError
+    'File truncated during scan': MemoryError,
+    'Unsupported file type (directories and special devices not supported)': UnsupportedFileTypeError
 };
 
 function ensureAddon() {
@@ -47,12 +49,21 @@ function ensureAddon() {
     }
 }
 
-function validate(filepath, pattern, maxMatches) {
+function validateFile(filepath, pattern, maxMatches) {
     if (!filepath || typeof filepath !== 'string') {
         throw new InvalidArgumentError('Filepath must be a non-empty string');
     }
-    if (!pattern || typeof pattern !== 'string') {
-        throw new InvalidArgumentError('Pattern must be a non-empty string');
+    validatePatternAndMatches(pattern, maxMatches);
+}
+
+function validatePatternAndMatches(pattern, maxMatches) {
+    const isString = typeof pattern === 'string';
+    const isBuffer = Buffer.isBuffer(pattern) || (pattern instanceof Uint8Array);
+    if (!isString && !isBuffer) {
+        throw new InvalidArgumentError('Pattern must be a string or Buffer');
+    }
+    if (pattern.length === 0) {
+        throw new InvalidArgumentError('Pattern must be non-empty');
     }
     if (typeof maxMatches !== 'number' || maxMatches <= 0) {
         throw new InvalidArgumentError('maxMatches must be a positive number');
@@ -60,17 +71,18 @@ function validate(filepath, pattern, maxMatches) {
 }
 
 /**
- * Scans a file synchronously using native C, AVX-512/AVX2, and zero-copy memory mapping.
+ * Scans a file synchronously using native C, AVX-512/AVX2/NEON, and zero-copy memory mapping.
  * Supported on Windows, Linux, and macOS.
  * 
  * @param {string} filepath - Absolute or relative path to file.
- * @param {string} pattern - The text pattern to search for.
+ * @param {string|Buffer|Uint8Array} pattern - The text or binary pattern to search for.
  * @param {number} maxMatches - Maximum number of matches to return.
  * @returns {BigUint64Array} - Zero-copy TypedArray of 64-bit byte offsets.
  */
 function scanFile(filepath, pattern, maxMatches = 100000) {
     ensureAddon();
-    validate(filepath, pattern, maxMatches);
+    validateFile(filepath, pattern, maxMatches);
+
     const resolvedPath = path.resolve(filepath);
 
     try {
@@ -86,19 +98,44 @@ function scanFile(filepath, pattern, maxMatches = 100000) {
  * Completely non-blocking for the Node.js event loop.
  * 
  * @param {string} filepath - Absolute or relative path to file.
- * @param {string} pattern - The text pattern to search for.
+ * @param {string|Buffer|Uint8Array} pattern - The text or binary pattern to search for.
  * @param {number} maxMatches - Maximum number of matches to return.
  * @returns {Promise<BigUint64Array>} - Resolves with byte offsets.
  */
 function scanFileAsync(filepath, pattern, maxMatches = 100000) {
     ensureAddon();
-    validate(filepath, pattern, maxMatches);
+    validateFile(filepath, pattern, maxMatches);
+
     const resolvedPath = path.resolve(filepath);
 
     return addon.scanFileAsync(resolvedPath, pattern, maxMatches).catch(err => {
         const ErrorClass = ERROR_MAP[err.message] || FastScanError;
         throw new ErrorClass(err.message);
     });
+}
+
+/**
+ * Scans an in-memory Buffer or Uint8Array directly with zero file I/O.
+ * 
+ * @param {Buffer|Uint8Array|string} buffer - The input data buffer to search within.
+ * @param {string|Buffer|Uint8Array} pattern - The pattern to find.
+ * @param {number} maxMatches - Maximum number of matches.
+ * @returns {BigUint64Array} - Byte offsets.
+ */
+function scanBuffer(buffer, pattern, maxMatches = 100000) {
+    ensureAddon();
+    const isBuffer = Buffer.isBuffer(buffer) || (buffer instanceof Uint8Array) || typeof buffer === 'string';
+    if (!isBuffer) {
+        throw new InvalidArgumentError('First argument must be a Buffer, Uint8Array, or string');
+    }
+    validatePatternAndMatches(pattern, maxMatches);
+
+    try {
+        return addon.scanBuffer(buffer, pattern, maxMatches);
+    } catch (err) {
+        const ErrorClass = ERROR_MAP[err.message] || FastScanError;
+        throw new ErrorClass(err.message);
+    }
 }
 
 /**
@@ -117,6 +154,7 @@ module.exports = {
     // Core APIs
     scanFile,
     scanFileAsync,
+    scanBuffer,
     
     // Multi-Pattern Single-Pass APIs
     scanFileMulti,
@@ -136,6 +174,7 @@ module.exports = {
         FileNotFoundError,
         MemoryError,
         InvalidArgumentError,
-        MappingError
+        MappingError,
+        UnsupportedFileTypeError
     }
 };

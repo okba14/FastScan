@@ -19,6 +19,7 @@ fs_status_t fs_scan_raw(const fs_byte_t* data, fs_size_t data_len, const fs_byte
 fs_status_t fs_scan_avx512(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches);
 fs_status_t fs_scan_avx2(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches);
 fs_status_t fs_scan_sse2(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches);
+fs_status_t fs_scan_neon(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches);
 fs_status_t fs_scan_scalar(const fs_byte_t* data, fs_size_t data_len, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t* out_matches, fs_size_t* match_count, fs_size_t max_matches);
 
 // Multi-pattern single-pass scanner
@@ -39,5 +40,6 @@ fs_status_t fs_extract_context(const fs_byte_t* data, fs_size_t total_size, fs_s
 
 // Vectorized line & column indexer
 fs_status_t fs_calculate_line_col(const fs_byte_t* data, fs_size_t total_size, fs_size_t offset, fs_size_t* out_line, fs_size_t* out_col);
+fs_status_t fs_calculate_line_col_batch(const fs_byte_t* data, fs_size_t total_size, const fs_size_t* offsets, fs_size_t offset_count, fs_size_t* out_lines, fs_size_t* out_cols);
 
 #endif // FASTSCAN_SCANNER_H

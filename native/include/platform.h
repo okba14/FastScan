@@ -55,6 +55,7 @@
 typedef struct {
     const fs_byte_t* data;
     fs_size_t size;
+    int is_mmap;
 #if defined(FS_PLATFORM_WINDOWS)
     HANDLE h_file;
     HANDLE h_map;

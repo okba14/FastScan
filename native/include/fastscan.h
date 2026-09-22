@@ -10,6 +10,7 @@ typedef struct {
     // Search Pattern
     const char* pattern;
     fs_size_t pattern_len;
+    char* owned_pattern;
 
     // Memory-mapped region
     fs_region_t region;
@@ -26,7 +27,9 @@ typedef struct {
 } fastscan_ctx_t;
 
 fs_status_t fastscan_init(fastscan_ctx_t* ctx, const char* pattern, fs_size_t max_results);
+fs_status_t fastscan_init_binary(fastscan_ctx_t* ctx, const fs_byte_t* pattern, fs_size_t pattern_len, fs_size_t max_results);
 fs_status_t fastscan_load_file(fastscan_ctx_t* ctx, const char* filepath);
+fs_status_t fastscan_load_buffer(fastscan_ctx_t* ctx, const fs_byte_t* buffer, fs_size_t buffer_len);
 fs_status_t fastscan_execute(fastscan_ctx_t* ctx);
 void fastscan_destroy(fastscan_ctx_t* ctx);
 
